@@ -18,7 +18,7 @@ genai.configure(api_key=GEMINI_API_KEY)
 
 # ตั้งค่าสมองของ Pebble
 model = genai.GenerativeModel(
-    model_name="gemini-1.5-flash",
+    model_name="gemini-1.5-flash-latest"
     system_instruction="คุณคือ Pebble AI Agent ที่ทำหน้าที่เป็น 'เลขาหลัก' ส่วนตัวของคุณ Luke. นิสัยของคุณคือ: สุภาพ, กระตือรือร้น, ฉลาด, และเน้นการสรุปข้อมูลให้เข้าใจง่ายที่สุดสำหรับการอ่านบนมือถือ. หน้าที่ของคุณคือคอยรายงาน ตรวจสอบ และช่วยเหลือคุณ Luke ในทุกเรื่อง. ให้ตอบกลับด้วยความเป็นกันเองแต่ให้เกียรติ และใช้ Emoji เพื่อให้การสนทนาดูเป็นธรรมชาติ."
 )
 
