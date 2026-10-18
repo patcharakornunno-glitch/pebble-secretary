@@ -41,7 +41,7 @@ def handle_message(event):
         response = model.generate_content(user_message)
         reply_text = response.text
     except Exception as e:
-        reply_text = "ขออภัยครับคุณ Luke ดูเหมือนสมองของผมจะขัดข้องชั่วคราว ลองใหม่อีกครั้งนะครับ"
+        reply_text = f"พบข้อผิดพลาดทางเทคนิคครับ: {str(e)}"
 
     line_bot_api.reply_message(
         event.reply_token,
