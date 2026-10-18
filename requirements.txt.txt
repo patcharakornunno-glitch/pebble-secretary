@@ -1,0 +1,5 @@
+text
+flask
+line-bot-sdk
+google-generativeai
+gunicorn
