@@ -14,8 +14,6 @@ line_bot_api = LineBotApi(os.getenv('LINE_CHANNEL_ACCESS_TOKEN'))
 handler = WebhookHandler(os.getenv('LINE_CHANNEL_SECRET'))
 genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
 
-# Using the EXACT format from your logs
-# 'models/gemini-flash-latest' is the safest choice for your account
 model = genai.GenerativeModel('models/gemini-flash-latest')
 
 @app.route("/callback", methods=['POST'])
@@ -35,7 +33,6 @@ def get_ai_response(prompt, img=None):
         else:
             response = model.generate_content(prompt)
         return response.text if response.text else "I can't describe this."
-
     except google.api_core.exceptions.ResourceExhausted:
         return "⚠️ Free limit reached! Try again later."
     except Exception as e:
@@ -50,11 +47,19 @@ def handle_text(event):
 @handler.add(MessageEvent, message=ImageMessage)
 def handle_image(event):
     try:
+        # 1. Download image
         message_content = line_bot_api.get_message_content(event.message.id)
         img = PIL.Image.open(io.BytesIO(message_content.content))
+        
+        # 2. RESIZE IMAGE to prevent Out of Memory (OOM) crashes
+        # Gemini only needs 1024px to see everything clearly
+        img.thumbnail((1024, 1024)) 
+        
         reply_text = get_ai_response("Please summarize this image in detail.", img)
     except Exception as e:
+        print(f"Image Error: {e}")
         reply_text = "I couldn't read that image. Please try again!"
+
     line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply_text))
 
 if __name__ == "__main__":
