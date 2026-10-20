@@ -4,6 +4,7 @@ from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import MessageEvent, TextMessage, TextSendMessage, ImageMessage
 import google.generativeai as genai
+import google.api_core.exceptions
 import PIL.Image
 import io
 
@@ -12,7 +13,7 @@ app = Flask(__name__)
 line_bot_api = LineBotApi(os.getenv('LINE_CHANNEL_ACCESS_TOKEN'))
 handler = WebhookHandler(os.getenv('LINE_CHANNEL_SECRET'))
 genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
-model = genai.GenerativeModel('models/Gemini 3.5-Flash-Lite')
+model = genai.GenerativeModel('gemini-1.5-flash')
 
 @app.route("/callback", methods=['POST'])
 def callback():
@@ -24,34 +25,32 @@ def callback():
         abort(400)
     return 'OK'
 
-# HANDLE TEXT MESSAGES
+def get_ai_response(prompt, img=None):
+    try:
+        if img:
+            response = model.generate_content([prompt, img])
+        else:
+            response = model.generate_content(prompt)
+        return response.text if response.text else "I can't describe this."
+    except google.api_core.exceptions.ResourceExhausted:
+        return "⚠️ I've reached my free limit for today! Please try again later or upgrade to Pay-as-you-go."
+    except Exception as e:
+        print(f"Internal Error: {e}")
+        return "🧠 My brain is lagging! Please try again in a few seconds."
+
 @handler.add(MessageEvent, message=TextMessage)
 def handle_text(event):
-    try:
-        response = model.generate_content(event.message.text)
-        reply_text = response.text if response.text else "I'm not sure how to respond to that."
-    except Exception as e:
-        reply_text = "My brain is lagging! Please try again."
+    reply_text = get_ai_response(event.message.text)
     line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply_text))
 
-# HANDLE IMAGE MESSAGES
 @handler.add(MessageEvent, message=ImageMessage)
 def handle_image(event):
     try:
-        # 1. Download image from LINE
         message_content = line_bot_api.get_message_content(event.message.id)
-        image_bytes = message_content.content
-        
-        # 2. Convert bytes to an image Gemini can read
-        img = PIL.Image.open(io.BytesIO(image_bytes))
-        
-        # 3. Ask Gemini to summarize the image
-        response = model.generate_content(["Please summarize this image in detail.", img])
-        reply_text = response.text if response.text else "I see the image, but I can't describe it."
+        img = PIL.Image.open(io.BytesIO(message_content.content))
+        reply_text = get_ai_response("Please summarize this image in detail.", img)
     except Exception as e:
-        print(f"Image Error: {e}")
         reply_text = "I couldn't read that image. Please try again!"
-
     line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply_text))
 
 if __name__ == "__main__":
