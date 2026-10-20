@@ -13,7 +13,17 @@ app = Flask(__name__)
 line_bot_api = LineBotApi(os.getenv('LINE_CHANNEL_ACCESS_TOKEN'))
 handler = WebhookHandler(os.getenv('LINE_CHANNEL_SECRET'))
 genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
-model = genai.GenerativeModel('model/gemini-3.8-flash')
+
+# We will try EVERY common variation of the model name
+MODEL_LIST = [
+    'gemini-1.5-flash', 
+    'models/gemini-1.5-flash', 
+    'gemini-1.0-pro', 
+    'models/gemini-1.0-pro', 
+    'gemini-pro'
+]
+current_model_name = MODEL_LIST[0]
+model = genai.GenerativeModel(current_model_name)
 
 @app.route("/callback", methods=['POST'])
 def callback():
@@ -26,17 +36,45 @@ def callback():
     return 'OK'
 
 def get_ai_response(prompt, img=None):
+    global model, current_model_name
+    
     try:
         if img:
             response = model.generate_content([prompt, img])
         else:
             response = model.generate_content(prompt)
         return response.text if response.text else "I can't describe this."
+
+    # CATCH BOTH 404 (Not Found) AND 400 (Invalid Argument/Format)
+    except (google.api_core.exceptions.NotFound, google.api_core.exceptions.InvalidArgument):
+        print(f"Model {current_model_name} failed. Trying next variation...")
+        for next_model in MODEL_LIST[1:]:
+            try:
+                model = genai.GenerativeModel(next_model)
+                current_model_name = next_model
+                if img:
+                    response = model.generate_content([prompt, img])
+                else:
+                    response = model.generate_content(prompt)
+                print(f"Successfully switched to {next_model}")
+                return response.text
+            except:
+                continue
+        
+        # If absolutely everything fails, list available models in logs
+        print("ALL MODEL VARIATIONS FAILED. Available models for this key:")
+        try:
+            for m in genai.list_models():
+                print(m.name)
+        except:
+            print("Could not even list models.")
+        return "❌ I tried every model name I know, but Google is rejecting them. Check Render logs!"
+
     except google.api_core.exceptions.ResourceExhausted:
-        return "⚠️ I've reached my free limit for today! Please try again later or upgrade to Pay-as-you-go."
+        return "⚠️ Free limit reached! Try again later."
     except Exception as e:
         print(f"Internal Error: {e}")
-        return "🧠 My brain is lagging! Please try again in a few seconds."
+        return "🧠 My brain is lagging! Please try again."
 
 @handler.add(MessageEvent, message=TextMessage)
 def handle_text(event):
